@@ -33,9 +33,9 @@ def filterPatterns(df, groupingAtt, groups):
     return ans
 
 
-def getAllGroups(df_org, atts, t):
+def getAllGroups(df_org, t):
     df = df_org.copy(deep=True)
-    df = df[atts]
+    #df = df[atts]
     df, rows, columns = Data2Transactions.removeHeader(df, 'Temp.csv')
     rules = Data2Transactions.getRules(df, rows, columns, min_support=t)
     return rules
