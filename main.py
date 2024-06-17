@@ -4,76 +4,66 @@ PATH = "./data/"
 import CauSumX
 import pandas as pd
 import Algorithms
-APRIORI = 0.6
+import Utils
+import csv
+APRIORI = 0.65
 COLUMNS_TO_EXCLUDE = ['education.num', 'capital.gain', 'capital.loss', 'income','fnlwgt']
+COLUMNS_TO_EXCLUDE_WITHOUT_SALARY = ['education.num', 'capital.gain', 'capital.loss', 'income']
 
 
 
-def so(k, tau):
-   actionable_atts = [
-      'Gender', 'SexualOrientation', 'EducationParents', 'RaceEthnicity',
-      'Age', 'Hobby', 'Student',
-   'FormalEducation', 'UndergradMajor', 'DevType', 'HoursComputer',
-   'Exercise'
-   ]
-   DAG = [
-      'Continent;',
-      'HoursComputer;',
-      'UndergradMajor;',
-      'FormalEducation;',
-      'Age;',
-      'Gender;',
-      'Dependents;',
-      'Country;',
-      'DevType;',
-      'RaceEthnicity;',
-      'ConvertedSalary;',
-      'HDI;',
-      'GINI;',
-      'GDP;',
-      'HDI -> GINI;',
-      'GINI -> ConvertedSalary;',
-      'GINI -> GDP;',
-      'GDP -> ConvertedSalary;',
-      'Gender -> FormalEducation;',
-      'Gender -> UndergradMajor;',
-      'Gender -> DevType;',
-      'Gender -> ConvertedSalary;',
-      'Country -> ConvertedSalary;',
-      'Country -> FormalEducation;',
-      'Country -> RaceEthnicity;',
-      'Continent -> Country; '
-      'FormalEducation -> DevType;',
-      'FormalEducation -> UndergradMajor;',
-      'Continent -> UndergradMajor',
-      'Continent -> FormalEducation;',
-      'Continent -> RaceEthnicity;',
-      'Continent -> ConvertedSalary;',
-      'RaceEthnicity -> ConvertedSalary;',
-      'UndergradMajor -> DevType;',
-      'DevType -> ConvertedSalary;',
-      'DevType -> HoursComputer;',
-      'Age -> ConvertedSalary;',
-      'Age -> DevType;',
-      'Age -> Dependents;',
-      'Age -> FormalEducation;',
-      'Dependents -> HoursComputer;',
-      'HoursComputer -> ConvertedSalary;']
 
+def so(outcome_column,protected_column,protected_column_value):
    df = pd.read_csv(PATH + 'adult_new.csv', encoding='utf8')
+   df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
+   df_origin = df
    df = df.drop(columns=COLUMNS_TO_EXCLUDE)
    df = df.dropna()
+   columns = df.columns
+   groups = Algorithms.getAllGroups(df, APRIORI)
+   print('num of groups: ', len(groups))
+   for group in groups:
+        excluded_attrs = set(group.keys())
+        excluded_attrs.update(["race", "sex", "age"])
+        remaining_attrs = [attr for attr in columns if attr not in excluded_attrs]
+        
+        # Generate possible treatments excluding group attributes
+        treatments = Utils.getLevel1treatments(remaining_attrs, df, ordinal_atts=[])
+
+        df = df_origin.drop(columns = COLUMNS_TO_EXCLUDE_WITHOUT_SALARY).dropna()
+        female_df = df[df[protected_column] == protected_column_value]  # Adjust the column name as needed
+        for treatment in treatments:
+            df['TempTreatment'] = df.apply(lambda row: addTempTreatment(row, treatment, excluded_attrs), axis=1)
+            female_df['TempTreatment'] = female_df.apply(lambda row: addTempTreatment(row, treatment, excluded_attrs), axis=1)
+
+            treated_outcome_mean = df[df['TempTreatment'] == 1][outcome_column].mean()
+            control_outcome_mean = df[df['TempTreatment'] == 0][outcome_column].mean()
+            
+            treatment_effect = abs(treated_outcome_mean - control_outcome_mean)
+             # Calculate treatment effect for females
+            female_treated_outcome_mean = female_df[female_df['TempTreatment'] == 1][outcome_column].mean()
+            female_control_outcome_mean = female_df[female_df['TempTreatment'] == 0][outcome_column].mean()
+            
+            female_treatment_effect = abs(female_treated_outcome_mean - female_control_outcome_mean)
+            utility_grade = 0.5*(female_treatment_effect/treatment_effect) + 0.5*treatment_effect
+            
    #ordinal_atts = {}
    #targetClass = 'ConvertedSalary'
    #groupingAtt = 'Country'
-   groups = Algorithms.getAllGroups(df, APRIORI)
-   #CauSumX.cauSumX(df, DAG, ordinal_atts, targetClass, groupingAtt, fds, k, tau, actionable_atts, True, True,
-   #        print_times=True)
-   print('num of groups: ', len(groups))
+
+def addTempTreatment(row, treatment, excluded_attrs):
+    for att, val in treatment.items():
+        if att in excluded_attrs:
+            continue
+        if row[att] == val:
+            return 1
+    return 0
+
 def main():
-   k = 3
-   tau = 1
-   so(k,tau)
+   outcome_column = "fnlwgt"
+   protected_column='sex'
+   protected_value = 'Female'
+   so(outcome_column,protected_column,protected_value)
 
 
 # Press the green button in the gutter to run the script.

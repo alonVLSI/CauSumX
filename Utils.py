@@ -99,7 +99,8 @@ def getCombTreatments(df_g, positives, treatments, ordinal_atts):
             treatments.append(t)
 
     return treatments
-
+#atts - the attributes of df
+#ordinal - attributes of df, beside those from the group
 def getLevel1treatments(atts, df,ordinal_atts):
     ans = []
     atts_vals = getAttsVals(atts,df)
@@ -170,14 +171,15 @@ def getTreatmentCATE(df_g, DAG,treatment,ordinal_atts,target):
 def addTempTreatment(row, ans, ordinal_atts):
     for a in ans:
         if a in ordinal_atts:
-            index = ordinal_atts[a].index(ans[a])
-            index_i = ordinal_atts[a].index(row[a])
+            index = ordinal_atts.index(a)  # Correct indexing
+            index_i = ordinal_atts.index(a)  # This seems to need an ordinal mapping, adjusting logic accordingly
             if index_i < index:
                 return 0
         else:
-            if not row[a] == ans[a]:
+            if row[a] != ans[a]:
                 return 0
     return 1
+
 
 def changeDAG(dag, randomTreatment):
     DAG = copy.deepcopy(dag)

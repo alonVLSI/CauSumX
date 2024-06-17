@@ -180,4 +180,45 @@ def filter_above_below_median(data):
 
     return filtered_data
 
+def getSingleTreatment(df_g, group, target, ordinal_atts, high, low,actionable_atts_org):
+    actionable_atts = [a for a in actionable_atts_org if not a in dropAtt]
+    df_g = df_g.loc[:, ~df_g.columns.str.contains('^Unnamed')]
+    # cols = df_g.columns
+    # cols = cols.drop(target)
+    print('starting group: ', group)
+    treatments = Utils.getLevel1treatments(actionable_atts, df_g, ordinal_atts)
+    print('num of treatments at level I: ', len(treatments))
+
+    t_h = None
+    cate_h = 0
+    t_l = None
+    cate_l = 0
+    treatments_cate, t_h, cate_h, t_l,cate_l = Utils.getCates(DAG,t_h,t_l, cate_h, cate_l, df_g,
+                                                              ordinal_atts, target, treatments)
+
+    treatments_cate = filter_above_below_median(treatments_cate)
+
+    treatments = Utils.getNextLeveltreatments(treatments_cate, df_g, ordinal_atts, high, low)
+    print('num of treatments at level II: ', len(treatments))
+    #print(treatments)
+    treatments_cate, t_h2, cate_h2, t_l2, cate_l2 = Utils.getCates(DAG,t_h,t_l, cate_h, cate_l, df_g, ordinal_atts, target,
+                                                             treatments)
+    if high:
+        if t_h2 != t_h:
+            print("high treatment found in level 2")
+            t_h = t_h2
+            cate_h = cate_h2
+    if low:
+        if t_l2 != t_l:
+            print("low treatment found in level 2")
+            t_l = t_l2
+            cate_l = cate_l2
+
+    # TODO: support upper levels
+    print('finished group: ', group)
+    print(t_h, cate_h)
+    print(t_l, cate_l)
+    print('#######################################')
+    return (t_h, cate_h), (t_l, cate_l)
+
 
