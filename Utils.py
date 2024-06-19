@@ -101,25 +101,27 @@ def getCombTreatments(df_g, positives, treatments, ordinal_atts):
     return treatments
 #atts - the attributes of df
 #ordinal - attributes of df, beside those from the group
-def getLevel1treatments(atts, df,ordinal_atts):
+def getLevel1treatments(atts, df, ordinal_atts):
     ans = []
-    atts_vals = getAttsVals(atts,df)
+    atts_vals = getAttsVals(atts, df)
 
-    count = 0
     for att in atts_vals:
         for val in atts_vals[att]:
-            p = {att:val}
-            df['TempTreatment'] = df.apply(lambda row: addTempTreatment(row, p, ordinal_atts), axis=1)
-            valid = list(set(df['TempTreatment'].tolist()))
+            p = {att: val}
+            df['TempTreatment'] = df[att].apply(lambda x: 1 if x == val else 0)
+            valid = df['TempTreatment'].unique()
+
             # no tuples in treatment group
             if len(valid) < 2:
                 continue
-            size = len(df[df['TempTreatment'] == 1])
-            count=count+1
+
+            size = df['TempTreatment'].sum()
             # treatment group is too big or too small
-            if size > 0.9*len(df) or size < 0.1*len(df):
+            if size > 0.9 * len(df) or size < 0.1 * len(df):
                 continue
+
             ans.append(p)
+    
     return ans
 
 def getTreatmeants(treatments_cate, bound):
