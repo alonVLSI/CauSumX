@@ -13,43 +13,54 @@ COLUMNS_TO_EXCLUDE_WITHOUT_SALARY = ['education.num', 'capital.gain', 'capital.l
 
 
 
-def so(outcome_column,protected_column,protected_column_value):
+def so(outcome_column, protected_column, protected_column_value):
     df = pd.read_csv(PATH + 'adult_new.csv', encoding='utf8')
     df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
-    df_origin = df
+    df_origin = df.copy()  # Use copy to avoid modifying df_origin when modifying df
     df = df.drop(columns=COLUMNS_TO_EXCLUDE)
     df = df.dropna()
     columns = df.columns
     groups = Algorithms.getAllGroups(df, APRIORI)
     print('num of groups: ', len(groups))
     results = []
+
     for group in groups:
         excluded_attrs = set(group.keys())
         excluded_attrs.update(["race", "sex", "age"])
         remaining_attrs = [attr for attr in columns if attr not in excluded_attrs]
         
+        # Generate possible treatments excluding group attributes
         treatments = Utils.getLevel1treatments(remaining_attrs, df, ordinal_atts=[])
 
-        df = df_origin.drop(columns = COLUMNS_TO_EXCLUDE_WITHOUT_SALARY).dropna()
+        df = df_origin.drop(columns=COLUMNS_TO_EXCLUDE_WITHOUT_SALARY).dropna()
+
+        # Filter for the specific group
         group_df = df[df.apply(lambda row: all(row[k] == v for k, v in group.items()), axis=1)]
+        
+        # Calculate group size
         group_size = len(group_df)
+
+        # Calculate the number of males and females in the group
         num_females = len(group_df[group_df[protected_column] == protected_column_value])
         num_males = group_size - num_females
-        female_df = df[df[protected_column] == protected_column_value]  
+
         for treatment in treatments:
             df['TempTreatment'] = df.apply(lambda row: addTempTreatment(row, treatment, excluded_attrs), axis=1)
-            female_df['TempTreatment'] = female_df.apply(lambda row: addTempTreatment(row, treatment, excluded_attrs), axis=1)
+            group_df['TempTreatment'] = group_df.apply(lambda row: addTempTreatment(row, treatment, excluded_attrs), axis=1)
 
             treated_outcome_mean = df[df['TempTreatment'] == 1][outcome_column].mean()
             control_outcome_mean = df[df['TempTreatment'] == 0][outcome_column].mean()
             
             treatment_effect = abs(treated_outcome_mean - control_outcome_mean)
-             # Calculate treatment effect for females
-            female_treated_outcome_mean = female_df[female_df['TempTreatment'] == 1][outcome_column].mean()
-            female_control_outcome_mean = female_df[female_df['TempTreatment'] == 0][outcome_column].mean()
+            
+            # Calculate treatment effect for females within the group
+            female_group_df = group_df[group_df[protected_column] == protected_column_value]
+            female_treated_outcome_mean = female_group_df[female_group_df['TempTreatment'] == 1][outcome_column].mean()
+            female_control_outcome_mean = female_group_df[female_group_df['TempTreatment'] == 0][outcome_column].mean()
             
             female_treatment_effect = abs(female_treated_outcome_mean - female_control_outcome_mean)
-            utility_grade = 0.5*(female_treatment_effect/treatment_effect) + 0.5*treatment_effect
+            utility_grade = 0.5 * (female_treatment_effect / treatment_effect) + 0.5 * treatment_effect
+
             results.append({
                 'group': group,
                 'group_size': group_size,
@@ -60,11 +71,12 @@ def so(outcome_column,protected_column,protected_column_value):
                 'female_treatment_effect': female_treatment_effect,
                 'utility_grade': utility_grade
             })
+
     keys = results[0].keys()
     with open('treatment_effects.csv', 'w', newline='') as output_file:
         dict_writer = csv.DictWriter(output_file, fieldnames=keys)
         dict_writer.writeheader()
-        dict_writer.writerows(results)       
+        dict_writer.writerows(results)   
 
 def addTempTreatment(row, treatment, ordinal_atts):
     for att, val in treatment.items():
