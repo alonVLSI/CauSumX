@@ -101,28 +101,31 @@ def getCombTreatments(df_g, positives, treatments, ordinal_atts):
     return treatments
 #atts - the attributes of df
 #ordinal - attributes of df, beside those from the group
-def getLevel1treatments(atts, df, ordinal_atts):
+def getLevel1treatments(atts, df):
     ans = []
     atts_vals = getAttsVals(atts, df)
 
     for att in atts_vals:
         for val in atts_vals[att]:
-            p = {att: val}
-            df['TempTreatment'] = df[att].apply(lambda x: 1 if x == val else 0)
-            valid = df['TempTreatment'].unique()
-
-            # no tuples in treatment group
-            if len(valid) < 2:
+            # Create a temporary indicator array for the treatment
+            temp_treatment = (df[att] == val).astype(int)
+            
+            # Check if treatment is valid (has both 0 and 1 values)
+            if temp_treatment.nunique() < 2:
                 continue
-
-            size = df['TempTreatment'].sum()
-            # treatment group is too big or too small
+            
+            # Calculate size of treatment group
+            size = temp_treatment.sum()
+            
+            # Check if treatment group size is within acceptable range
             if size > 0.9 * len(df) or size < 0.1 * len(df):
                 continue
-
-            ans.append(p)
+            
+            # Append the treatment parameter to the list of treatments
+            ans.append({att: val})
     
     return ans
+
 
 def getTreatmeants(treatments_cate, bound):
     ans = []
@@ -150,8 +153,8 @@ def getCates(DAG, t_h,t_l,cate_h, cate_l, df_g, ordinal_atts, target, treatments
             t_l = treatment
     return treatments_cate, t_h, cate_h, t_l,cate_l
 
-def getTreatmentCATE(df_g, DAG,treatment,ordinal_atts,target):
-    df_g['TempTreatment'] = df_g.apply(lambda row: addTempTreatment(row, treatment, ordinal_atts), axis=1)
+def getTreatmentCATE(df_g, DAG,treatment,target):
+    df_g['TempTreatment'] = df_g.apply(lambda row: addTempTreatment(row, treatment, ordinal_atts=[]), axis=1)
     DAG_ = changeDAG(DAG, treatment)
     causal_graph = """
                         digraph {
@@ -160,13 +163,12 @@ def getTreatmentCATE(df_g, DAG,treatment,ordinal_atts,target):
         causal_graph = causal_graph + line + "\n"
     causal_graph = causal_graph + "}"
     try:
-        ATE, p_value = estimateATE(causal_graph, df_g, 'TempTreatment', target)
+        ATE,p_value = estimateATE(causal_graph, df_g, 'TempTreatment', target)
         if p_value > THRESHOLD:
             ATE = 0
-    # print(treatment, c, ATE, p_value)
     except:
-        ATE = 0
-        p_value = 0
+       ATE = 0
+       p_value = 0
     return ATE
 
 
@@ -213,13 +215,14 @@ def estimateATE(causal_graph, df, T, O):
         outcome=O)
 
     estimands = model.identify_effect()
-
+    #print(estimands)
     causal_estimate_reg = model.estimate_effect(estimands,
                                                 method_name="backdoor.linear_regression",
                                                 target_units="ate",
                                                 #evaluate_effect_strength=True,
                                                 effect_modifiers = [],
                                                 test_significance=True)
+    #print(causal_estimate_reg)
     return causal_estimate_reg.value, causal_estimate_reg.test_stat_significance()['p_value']
 
 
