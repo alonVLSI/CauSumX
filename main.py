@@ -1,18 +1,20 @@
 import warnings
 warnings.filterwarnings('ignore')
 PATH = "./data/"
-import CauSumX
 import pandas as pd
 import Algorithms
 import Utils
 import csv
 import json
 import math
+import time
+from itertools import combinations
 
-APRIORI = 0.65
+APRIORI = 0.6
 COLUMNS_TO_EXCLUDE = ['education.num', 'capital.gain', 'capital.loss', 'income','fnlwgt']
 COLUMNS_TO_EXCLUDE_WITHOUT_SALARY = ['education.num', 'capital.gain', 'capital.loss', 'income']
-NUM_OF_FINAL_GROUPS = 3
+NUM_OF_FINAL_GROUPS = 7
+KEYS_TO_REMOVE=['female_treatment_effect','treatment_effect','score']
 TARGET_SALARY = 'income'
 DAG = [
     'age;',
@@ -77,7 +79,7 @@ DAG = [
 import pandas as pd
 import csv
 
-def process_group(df_origin, df, group, outcome_column, protected_column, protected_column_value, results):
+def process_group(df_origin, df, group, protected_column, protected_column_value, results):
     excluded_attrs = set(group.keys())
     excluded_attrs.update(["race", "sex", "age","relationship","marital.status"])
     remaining_attrs = [attr for attr in df.columns if attr not in excluded_attrs]
@@ -87,10 +89,6 @@ def process_group(df_origin, df, group, outcome_column, protected_column, protec
     group_df = df_origin.copy()
     for k, v in group.items():
         group_df = group_df[group_df[k] == v]
-    #CHECKING
-    for k, v in group.items():
-        group_df.drop(columns=k)
-    #TO HERE
     group_size = len(group_df)
     num_females = len(group_df[group_df[protected_column] == protected_column_value])
     num_males = group_size - num_females
@@ -121,8 +119,6 @@ def process_group(df_origin, df, group, outcome_column, protected_column, protec
     result = {
             'group': group,
             'group_size': group_size,
-            'num_females': num_females,
-            'num_males': num_males,
             'treatment': dict_for_best_treatments[json.dumps(group)][0],
             'treatment_effect': general_and_female_effectt[0],
             'female_treatment_effect': general_and_female_effectt[1],
@@ -131,28 +127,38 @@ def process_group(df_origin, df, group, outcome_column, protected_column, protec
         
     results.append(result)
 
-def so(outcome_column, protected_column, protected_column_value):
+def so(protected_column, protected_column_value):
+    start_time = time.time()
     df = pd.read_csv(PATH + 'adult_new.csv', encoding='utf8')
     df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
     df = df.dropna()
     df_origin = df.copy()
     df = df.drop(columns=COLUMNS_TO_EXCLUDE)
     groups = Algorithms.getAllGroups(df, APRIORI)
-    print('num of groups: ', len(groups))
     results = []
 
     for group in groups:
-        process_group(df_origin, df, group, outcome_column, protected_column, protected_column_value, results)
+        process_group(df_origin, df, group, protected_column, protected_column_value, results)
 
-    # Sort results by group name
     results = greedy_selection(df_origin, NUM_OF_FINAL_GROUPS, results)
     results.sort(key=lambda x: str(x['group']))
-
+    expectation_grade = calculateExpectation(results,df_origin)
+    protected_expectation_grade = calculateExpectation(results,df_origin,{protected_column:protected_column_value})
+    end_time = time.time()
+    overall_time = end_time-start_time
+    results[0]['expectation_grade'] = expectation_grade
+    results[0]['protected_expectation_grade'] = protected_expectation_grade
+    results[0]['Total time(seconds)'] = overall_time
     keys = results[0].keys()
-    with open('treatment_effects_greedy.csv', 'w', newline='') as output_file:
-        dict_writer = csv.DictWriter(output_file, fieldnames=keys)
+    filtered_keys = [key for key in keys if key not in KEYS_TO_REMOVE]
+    filtered_results = []
+    for result in results:
+        filtered_result = {key: value for key, value in result.items() if key not in KEYS_TO_REMOVE}
+        filtered_results.append(filtered_result)    
+    with open(f'treatment_effects_greedy_{NUM_OF_FINAL_GROUPS}_final_groups_{APRIORI}AP.csv', 'w', newline='') as output_file:
+        dict_writer = csv.DictWriter(output_file, fieldnames=filtered_keys)
         dict_writer.writeheader()
-        dict_writer.writerows(results)
+        dict_writer.writerows(filtered_results)
 
 def addTempTreatment(row, treatment, ordinal_atts):
     for att, val in treatment.items():
@@ -212,29 +218,68 @@ def greedy_selection(df, k, results):
         if best_group is None:
             break
         
-        # Add the best group to the selected groups
         best_result['score'] = best_score
         best_result['group'] = best_group
         best_result['group_size'] = best_group_size
         selected_result.append(best_result)
 
-        # Get the DataFrame rows corresponding to the selected group
         group_df = df[df.apply(lambda row: all(row[k] == v for k, v in best_group.items()), axis=1)]
         
-        # Remove the selected group rows from the DataFrame
         df = df.drop(group_df.index)
 
     return selected_result
 
+def calculateExpectation(results, df,protected=None):
+    """
+    Calculate the expected grade for the provided groups based on their CATE and sizes.   
+    :param results: List of dictionaries, each containing group information.
+    :param df: DataFrame containing the data.
+    :return: Expected grade.
+    """
+    
+    def get_combined_group_size(group_combination):
+        combined_group = {}
+        if protected:
+            combined_group.update(protected)
+        for group in group_combination:
+            combined_group.update(group['group'])
+        
+        group_df = df[df.apply(lambda row: all(row.get(k) == v for k, v in combined_group.items()), axis=1)]
+        size = len(group_df)
+        return size
+    
+    total_weighted_sum = 0
+    total_size = 0
+    num_groups = len(results)
+    
+    for i in range(1, num_groups + 1):
+        for group_combination in combinations(results, i):
+            size = get_combined_group_size(group_combination)
+            if size == 0:
+                continue
+            if protected:
+                treatment_effects = [group['female_treatment_effect'] for group in group_combination]
+            else:
+                treatment_effects = [group['treatment_effect'] for group in group_combination] 
+            min_treatment_effect = min(treatment_effects)
+            weighted_sum = min_treatment_effect * size
+            total_weighted_sum += weighted_sum
+            total_size += size
+    
+    expected_grade = total_weighted_sum / total_size if total_size > 0 else 0
+    return expected_grade
 
 def main():
-   outcome_column = "fnlwgt"
    protected_column='sex'
    protected_value = 'Female'
-   so(outcome_column, protected_column, protected_value)
+   so(protected_column, protected_value)
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
    main()
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
+
+#TODO
+#Expected utility - 
+#
