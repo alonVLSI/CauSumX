@@ -1,6 +1,5 @@
 import warnings
 warnings.filterwarnings('ignore')
-PATH = "./data/"
 import pandas as pd
 import Algorithms
 import Utils
@@ -8,12 +7,15 @@ import csv
 import json
 import math
 import time
+import pandas as pd
+import csv
 from itertools import combinations
 
 APRIORI = 0.6
+PATH = "./data/"
 COLUMNS_TO_EXCLUDE = ['education.num', 'capital.gain', 'capital.loss', 'income','fnlwgt']
 COLUMNS_TO_EXCLUDE_WITHOUT_SALARY = ['education.num', 'capital.gain', 'capital.loss', 'income']
-NUM_OF_FINAL_GROUPS = 3
+NUM_OF_FINAL_GROUPS = 7
 TARGET_SALARY = 'income'
 DAG = [
     'age;',
@@ -74,9 +76,6 @@ DAG = [
     'race -> occupation;',
     'race -> workclass;'
 ]
-
-import pandas as pd
-import csv
 
 def process_group(df_origin, df, group, protected_column, protected_column_value, results):
     excluded_attrs = set(group.keys())
@@ -154,7 +153,7 @@ def CalculateEqualyTreatments(protected_column, protected_column_value):
         'Total time(seconds)': overall_time,
         'Total amount': total_size,
         'Total Coverage': total_coverage,
-        'Coverage Percentae': f"{(total_size/total_coverage):.2f}%"
+        'Coverage Percentae': f"{((total_size/total_coverage)*100):.2f}%"
     }
 
     with open(f'treatment_effects_greedy_{NUM_OF_FINAL_GROUPS}_final_groups_{APRIORI}AP.csv', 'w', newline='') as file:
@@ -275,12 +274,5 @@ def main():
    protected_value = 'Female'
    CalculateEqualyTreatments(protected_column, protected_value)
 
-# Press the green button in the gutter to run the script.
 if __name__ == '__main__':
    main()
-
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
-
-#TODO
-#Expected utility - 
-#
