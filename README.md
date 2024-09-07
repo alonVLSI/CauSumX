@@ -1,5 +1,5 @@
-# Summarized Causal Explanations For Aggregate Views
-Summarized Causal Explanations For Aggregate Views
+# Summarized Alogorithm for faired salary raise treatment
+ Summarized Alogorithm for faired salary raise treatment
 
 Requirements:
 
