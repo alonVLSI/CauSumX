@@ -1,0 +1,8 @@
+group,group_size,males,females,treatment,treatment_effect,female_treatment_effect,utility_grade
+{'native.country': 'United-States'},26898,18037,8861,{'occupation': 'Prof-specialty'},0.225201052,0.167306258,0.484060287
+{'race': 'White'},397,293,104,{'native.country': 'United-States'},0.073022459,0.023806922,0.19952219
+{'sex': 'Male'},177,177,0,{'native.country': 'United-States'},0.07005651,0,0.035028255
+{'workclass': 'Private'},2533,1708,825,{'native.country': 'United-States'},0.060588605,0.018221344,0.180663699
+,,,,,,,
+expectation_grade,protected_expectation_grade,Total time(seconds),Total amount,Total Coverage,Coverage Percentae,,
+0.080983276,0.013251066,814.040885,30069,30005,99.87%,,

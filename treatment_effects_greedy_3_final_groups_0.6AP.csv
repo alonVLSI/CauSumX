@@ -1,0 +1,7 @@
+group,group_size,males,females,treatment,treatment_effect,female_treatment_effect,utility_grade
+{'native.country': 'United-States'},26898,18037,8861,{'occupation': 'Exec-managerial'},0.272007965,0.146083967,0.404532823
+{'race': 'White'},397,293,104,{'native.country': 'United-States'},0.073022459,0.023806922,0.19952219
+{'workclass': 'Private'},2533,1708,825,{'native.country': 'United-States'},0.060588605,0.018221344,0.180663699
+,,,,,,,
+expectation_grade,protected_expectation_grade,Total time(seconds),Total amount,Total Coverage,Coverage Percentae,,
+0.101052264,0.042210444,345.0800049,30069,29828,99.19%,,
